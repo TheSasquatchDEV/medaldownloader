@@ -170,7 +170,7 @@
                 showLoading('Initiating direct download...');
             } else if (isMedalPageLink) {
                 // If it's a Medal.tv share page link, call the Vercel function
-                if (VERCEL_FUNCTION_URL === 'medaldownloader.vercel.app' || !VERCEL_FUNCTION_URL) {
+                if (VERCEL_FUNCTION_URL === 'https://medaldownloader.vercel.app/api/get-video-url' || !VERCEL_FUNCTION_URL) {
                     showMessage('Error: Vercel function URL is not configured. Please deploy the backend and update the `VERCEL_FUNCTION_URL` in the script.', 'error');
                     hideLoading();
                     return;
