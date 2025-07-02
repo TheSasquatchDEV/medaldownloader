@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medal.tv Video Downloader</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom scrollbar for a darker theme */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #2d3748; /* Darker track */
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4a5568; /* Darker thumb */
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #6a768c; /* Lighter thumb on hover */
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen flex items-center justify-center p-4">
+    <div class="bg-gray-800 p-8 rounded-xl shadow-lg w-full max-w-md border border-gray-700">
+        <h1 class="text-3xl font-bold text-center mb-6 text-purple-400">Medal.tv Video Downloader</h1>
+
+        <div class="mb-4">
+            <label for="videoLink" class="block text-gray-300 text-sm font-semibold mb-2">
+                Medal.tv Video Link:
+            </label>
+            <input
+                type="url"
+                id="videoLink"
+                placeholder="e.g., https://medal.tv/clips/... or https://cdn.medal.tv/video/..."
+                class="w-full p-3 rounded-lg bg-gray-700 border border-gray-600 text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 transition duration-200"
+            >
+            <p class="text-sm text-gray-400 mt-2">
+                You can now paste either a direct video file link or a standard Medal.tv share link.
+            </p>
+        </div>
+
+        <button
+            id="downloadButton"
+            class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-75 shadow-md"
+        >
+            Download Video
+        </button>
+
+        <div id="messageBox" class="mt-6 p-4 rounded-lg text-center hidden" role="alert">
+            <!-- Messages will be displayed here -->
+        </div>
+
+        <div id="loadingIndicator" class="hidden mt-6 text-center">
+            <div class="animate-spin inline-block w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full" role="status">
+                <span class="sr-only">Loading...</span>
+            </div>
+            <p class="text-gray-400 mt-2">Processing link...</p>
+        </div>
+    </div>
+
+    <script>
+        // Get references to DOM elements
+        const videoLinkInput = document.getElementById('videoLink');
+        const downloadButton = document.getElementById('downloadButton');
+        const messageBox = document.getElementById('messageBox');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+
+        // IMPORTANT: Replace this with the actual URL of your deployed Vercel function!
+        // Example: const VERCEL_FUNCTION_URL = 'https://your-project-name.vercel.app/api/get-video-url';
+        const VERCEL_FUNCTION_URL = 'YOUR_VERCEL_FUNCTION_URL_HERE'; // <<< REPLACE THIS LINE
+
+        /**
+         * Displays a message in the message box.
+         * @param {string} message - The message to display.
+         * @param {string} type - The type of message ('success', 'error', 'info').
+         */
+        function showMessage(message, type) {
+            messageBox.textContent = message;
+            messageBox.classList.remove('hidden', 'bg-green-700', 'bg-red-700', 'bg-blue-700');
+            messageBox.classList.add('block');
+
+            if (type === 'success') {
+                messageBox.classList.add('bg-green-700', 'text-white');
+            } else if (type === 'error') {
+                messageBox.classList.add('bg-red-700', 'text-white');
+            } else { // info
+                messageBox.classList.add('bg-blue-700', 'text-white');
+            }
+        }
+
+        /**
+         * Hides the message box.
+         */
+        function hideMessage() {
+            messageBox.classList.add('hidden');
+            messageBox.textContent = '';
+        }
+
+        /**
+         * Shows the loading indicator.
+         * @param {string} text - Optional text to display with the loading indicator.
+         */
+        function showLoading(text = 'Processing link...') {
+            loadingIndicator.querySelector('p').textContent = text;
+            loadingIndicator.classList.remove('hidden');
+            downloadButton.disabled = true;
+            downloadButton.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+
+        /**
+         * Hides the loading indicator.
+         */
+        function hideLoading() {
+            loadingIndicator.classList.add('hidden');
+            downloadButton.disabled = false;
+            downloadButton.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+
+        /**
+         * Initiates the direct video download in the browser.
+         * @param {string} directVideoUrl - The direct URL to the video file.
+         */
+        function initiateDirectDownload(directVideoUrl) {
+            const a = document.createElement('a');
+            a.href = directVideoUrl;
+
+            // Suggest a filename based on the URL or a generic one
+            const urlParts = directVideoUrl.split('/');
+            const suggestedFileName = urlParts[urlParts.length - 1].split('?')[0] || 'medal_video.mp4';
+            a.download = suggestedFileName;
+
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a); // Clean up
+            URL.revokeObjectURL(directVideoUrl); // Not strictly necessary for direct URLs, but good practice for Blobs
+            showMessage('Video download initiated!', 'success');
+        }
+
+
+        /**
+         * Handles the video download process.
+         */
+        downloadButton.addEventListener('click', async () => {
+            hideMessage();
+            const inputUrl = videoLinkInput.value.trim();
+
+            if (!inputUrl) {
+                showMessage('Please enter a video link.', 'error');
+                return;
+            }
+
+            // Check if it's a direct video link (e.g., .mp4, cdn.medal.tv)
+            const isDirectVideoLink = /\.(mp4|webm|mov|avi|flv|mkv)$/i.test(inputUrl) || inputUrl.includes('cdn.medal.tv');
+            // Check if it's a Medal.tv share page link
+            const isMedalPageLink = inputUrl.includes('medal.tv/clips/') || inputUrl.includes('medal.tv/games/');
+
+            let videoToDownload = '';
+
+            if (isDirectVideoLink) {
+                // If it's already a direct link, use it directly
+                videoToDownload = inputUrl;
+                showLoading('Initiating direct download...');
+            } else if (isMedalPageLink) {
+                // If it's a Medal.tv share page link, call the Vercel function
+                if (VERCEL_FUNCTION_URL === 'YOUR_VERCEL_FUNCTION_URL_HERE' || !VERCEL_FUNCTION_URL) {
+                    showMessage('Error: Vercel function URL is not configured. Please deploy the backend and update the `VERCEL_FUNCTION_URL` in the script.', 'error');
+                    hideLoading();
+                    return;
+                }
+
+                showLoading('Fetching direct video URL from Medal.tv...');
+                try {
+                    const response = await fetch(VERCEL_FUNCTION_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ medalUrl: inputUrl }),
+                    });
+
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(data.message || 'Failed to get direct video URL from server.');
+                    }
+
+                    if (data.directVideoUrl) {
+                        videoToDownload = data.directVideoUrl;
+                    } else {
+                        throw new Error('Server did not return a direct video URL.');
+                    }
+                } catch (error) {
+                    console.error('Error calling Vercel function:', error);
+                    showMessage(`Failed to get video URL: ${error.message}. Please check the Medal.tv link and your Vercel function deployment.`, 'error');
+                    hideLoading();
+                    return; // Stop execution if server call fails
+                }
+            } else {
+                // If it's neither a direct link nor a Medal.tv share link
+                showMessage('Please enter a valid Medal.tv direct video link or a Medal.tv share page link.', 'error');
+                return;
+            }
+
+            // Proceed with the download once we have the direct video URL
+            try {
+                // The browser will handle the download of the videoToDownload URL.
+                // We don't need to fetch it as a Blob here, just create an anchor tag.
+                initiateDirectDownload(videoToDownload);
+
+            } catch (error) {
+                console.error('Download failed:', error);
+                showMessage(`Failed to download video: ${error.message}. Please ensure the link is valid.`, 'error');
+            } finally {
+                hideLoading();
+            }
+        });
+    </script>
+</body>
+</html>
